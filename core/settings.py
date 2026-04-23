@@ -37,6 +37,7 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'api',
 ]
 
 MIDDLEWARE = [
@@ -74,8 +75,16 @@ WSGI_APPLICATION = 'core.wsgi.application'
 
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+        'ENGINE': 'mssql',
+        'NAME': 'travel_cambodia_db',
+        'HOST': 'BABABUII\\SQLEXPRESS',  # Or your specific SQL Server instance name, like 'localhost\\SQLEXPRESS'
+        'PORT': '',
+        'USER': '',
+        'PASSWORD': '',
+        'OPTIONS': {
+            'driver': 'ODBC Driver 17 for SQL Server',  # Standard driver for Windows
+            'extra_params': 'Trusted_Connection=yes;',  # This uses Windows Authentication so you don't need a password here
+        },
     }
 }
 
@@ -115,3 +124,6 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/6.0/howto/static-files/
 
 STATIC_URL = 'static/'
+
+# Tells Django to use the Custom User model located in our 'api' app
+AUTH_USER_MODEL = 'api.User'
