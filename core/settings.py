@@ -37,6 +37,7 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'rest_framework',
     'api',
 ]
 
@@ -127,3 +128,23 @@ STATIC_URL = 'static/'
 
 # Tells Django to use the Custom User model located in our 'api' app
 AUTH_USER_MODEL = 'api.User'
+
+# Forces Django to print emails to the terminal instead of sending over the internet
+EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+
+# ==========================================
+# REST FRAMEWORK & JWT SETTINGS
+# ==========================================
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': (
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
+    )
+}
+
+from datetime import timedelta
+
+SIMPLE_JWT = {
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60),
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
+    'AUTH_HEADER_TYPES': ('Bearer',),
+}
