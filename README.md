@@ -91,6 +91,8 @@ Travel-Cambodia---Backend/
 | Port 8000 in use | Use `python manage.py runserver 8001` |
 | Question about API | See [docs/API_ENDPOINTS.md](docs/API_ENDPOINTS.md) |
 
+hi from local
+
 ---
 
 **Ready to start?** → Open [docs/SETUP.md](docs/SETUP.md)
