@@ -1,0 +1,18 @@
+Member 5  
+Backend Member 5 -  Auth, Security & Admin Conﬁgura�on  
+Project Role:  Securing the applica�on, managing user iden��es, and building the backend 
+management interfaces.  
+Core Technologies:  Python, Django Authen�ca�on, Django Admin.  
+• Weeks 1 -3 (Sandbox & Setup): Learn how Django handles user authen�ca�on. Prac�ce 
+se�ng up the default Django Admin panel and explore Django's built -in email sending tools.  
+• Weeks 4 -6 (Founda�on): Implement custom User models if necessary. Conﬁgure the Django 
+Admin Panel so that content can be added or edited manually . Set up secure password 
+hashing (ensuring no plaintext passwords are stored) . 
+• Weeks 7 -10 (Core Features Auth):  Develop the User Registra�on and Login endpoints . 
+Implement the Email OTP genera�on and veriﬁca�on ﬂow for forgot password requests . 
+• Weeks 11 -13 (Advanced Features Admin): Conﬁgure the Super Admin panel to assign roles 
+and manage permissions . Create the secure endpoints for upda�ng user proﬁle pictures and 
+names . 
+• Weeks 14 -16 (Polish & QA):  Conduct a security review of all API endpoints to ensure non -
+authen�cated users cannot access private i�nerary data. Finalize the IT Support �cke�ng 
+interface . 

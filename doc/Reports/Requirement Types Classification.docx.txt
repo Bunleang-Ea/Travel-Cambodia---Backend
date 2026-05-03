@@ -1,0 +1,18 @@
+Requirement Types Classification
+Topic: Tourism App
+Course: Project Practicum and Software Engineering — Chapter 3 (Requirement Gathering)
+
+
+Instruction
+Part A: For each requirement (R1–R25), write the type and a short reason (1 sentence).
+Choose ONE type: BR (Business), UR (User), FR (Functional), NFR (Non-Functional), SR (System), RR (Regulatory).
+Part B: Pick TWO vague requirements and rewrite them to be measurable/testable (add metrics such as seconds, %, uptime, etc.).
+
+Quick Definitions (use for classification)
+
+Part A: Classify Each Requirement
+
+
+Part B: Rewrite TWO Vague Requirements to be Measurable/Testable
+Choose two Functional Requirements (FR) and write acceptance criteria.
+

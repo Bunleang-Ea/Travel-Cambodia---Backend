@@ -1,39 +1,96 @@
-# Travel-Cambodia
-Travel Cambodia is a travel platform that helps local and international tourists find places to visit in Cambodia and plan their trips. The system focuses on providing clear travel information and simple trip planning.
+# Travel Cambodia Backend - Quick Start
 
-The first version will be a mobile-friendly/website so users can access it easily on phones
-and computers. A mobile app can be considered later if needed.
-The system will include these main features:
+Welcome! This is the backend for Travel Cambodia, a travel planning platform.
 
-● Place browsing and searching: Users can browse places by category and city, search
-by keyword, and view place details such as description, photos, contact info, and a
-map link.
+**Status: ✅ Ready for Frontend Integration**
 
-● Itinerary planning: Users can create a trip plan and organize places by days (Day 1,
-Day 2, etc.). Users can edit the plan and add simple notes.
+---
 
-● User account (optional for MVP): If needed, users can register to save itineraries
-and view request history. For a simpler prototype, users can use the system without
-login and only provide phone/email when sending a request.
+## 📚 Documentation Roadmap
 
-● User ratings and comments: Users can give ratings on places and also comment in
-the place they have visited. They can also send pictures that they have visited in that
-area as well.
+**Choose one based on your role:**
 
-● Admin Content management: Admin can add/edit/delete places, manage
-categories/cities.
+- 👤 **Developer** → Start with [docs/SETUP.md](docs/SETUP.md)
+- 🧪 **QA/Tester** → Go to [docs/TESTING.md](docs/TESTING.md)
+- 🪟 **Windows User** → Read [docs/WINDOWS_TESTING.md](docs/WINDOWS_TESTING.md)
+- 📖 **Want Details** → See [docs/IMPLEMENTATION_STATUS.md](docs/IMPLEMENTATION_STATUS.md)
+- 💻 **Contributing** → Check [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md)
+- 🔌 **API Reference** → Review [docs/API_ENDPOINTS.md](docs/API_ENDPOINTS.md)
 
-● Super Admin Panel: Super admin can create/delete admins & users, assign roles,
-manage permissions and reset passwords.
+---
 
-**The project will be built step by step, starting with the MVP features first, then improving
-them for the Y2S2 prototype.**
+## ⚡ 2-Minute Quick Start
 
-### **Not included in this version:**
+```powershell
+# 1. Go to project directory
+cd c:\Users\kakal\Downloads\back-end-security\Travel-Cambodia---Backend
 
-● Real online payment integration
+# 2. Activate environment
+.\.venv\Scripts\Activate.ps1
 
-● Full personalized AI recommendations
+# 3. Run tests (verify everything works)
+python manage.py test accounts --keepdb
 
-● Large partner integrations or external booking APIs
+# Expected: "Ran 12 tests ... OK"
 
+# 4. Start development server
+python manage.py runserver
+
+# 5. Visit http://localhost:8000/api/docs/ for interactive API docs
+```
+
+---
+
+## 📁 Project Structure
+
+```
+Travel-Cambodia---Backend/
+├── docs/                      📚 All documentation (start here!)
+├── scripts/                   🔧 Testing & utility scripts
+├── accounts/                  👤 Authentication & users
+├── core/                      ⚙️ Django settings
+├── itineraries/               🗺️ Trip planning
+├── manage.py                  🚀 Run this with "python manage.py ..."
+└── requirements.txt           📦 Python packages
+```
+
+---
+
+## ✅ What's Built
+
+| Feature | Status |
+|---------|--------|
+| User Registration | ✅ Done |
+| Login/Logout | ✅ Done |
+| Password Reset (OTP) | ✅ Done |
+| Admin Management | ✅ Done |
+| Support Tickets | ✅ Done |
+| Input Validation | ✅ Done |
+| Security (CORS, etc) | ✅ Done |
+| API Documentation | ✅ Done |
+| Tests | ✅ 12/12 Passing |
+
+---
+
+## 🎯 Next Steps
+
+1. **Learn the setup** → [docs/SETUP.md](docs/SETUP.md)
+2. **Run tests** → `python manage.py test accounts --keepdb`
+3. **Test features** → Use [docs/TESTING.md](docs/TESTING.md) or `/api/docs/`
+4. **Read code** → Check `accounts/` folder
+5. **Make changes** → Follow [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md)
+
+---
+
+## 🆘 Need Help?
+
+| Problem | Solution |
+|---------|----------|
+| Can't find manage.py | Check you're in: `Travel-Cambodia---Backend/` |
+| Tests won't run | Read [docs/WINDOWS_TESTING.md](docs/WINDOWS_TESTING.md) |
+| Port 8000 in use | Use `python manage.py runserver 8001` |
+| Question about API | See [docs/API_ENDPOINTS.md](docs/API_ENDPOINTS.md) |
+
+---
+
+**Ready to start?** → Open [docs/SETUP.md](docs/SETUP.md)
