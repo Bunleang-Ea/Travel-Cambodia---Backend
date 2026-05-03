@@ -41,7 +41,7 @@ class CORSTests(TestCase):
         """Test that credentials can be sent with CORS requests."""
         # CORS_ALLOW_CREDENTIALS should be True
         response = self.client.get(
-            '/api/accounts/profile/',
+            '/api/accounts/me/',
             HTTP_ORIGIN='http://example.com'
         )
         # Response should have appropriate headers

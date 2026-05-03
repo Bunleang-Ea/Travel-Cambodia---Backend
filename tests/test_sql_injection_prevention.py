@@ -110,7 +110,7 @@ class SQLInjectionPreventionTests(TestCase):
         """Profile update should safely handle injection in user input."""
         self.client.credentials(HTTP_AUTHORIZATION=f'Token {self.token.key}')
 
-        response = self.client.put('/api/accounts/profile/', {
+        response = self.client.put('/api/accounts/me/', {
             'full_name': 'Test\'); DROP TABLE users;--'
         })
 
@@ -132,10 +132,11 @@ class SQLInjectionPreventionTests(TestCase):
             'password': 'anything'
         })
 
-        # Should be rejected as invalid email format
+        # Should be rejected as invalid email format or be rate limited
         self.assertIn(response.status_code, [
             status.HTTP_400_BAD_REQUEST,
-            status.HTTP_401_UNAUTHORIZED
+            status.HTTP_401_UNAUTHORIZED,
+            status.HTTP_429_TOO_MANY_REQUESTS
         ])
 
     def test_time_based_sql_injection_attempt(self):

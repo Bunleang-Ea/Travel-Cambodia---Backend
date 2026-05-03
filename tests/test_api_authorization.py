@@ -112,7 +112,7 @@ class UserDataAccessTests(TestCase):
     def test_authenticated_user_can_access_own_profile(self):
         """User should be able to access their own profile."""
         self.client.credentials(HTTP_AUTHORIZATION=f'Token {self.token1.key}')
-        response = self.client.get('/api/accounts/profile/')
+        response = self.client.get('/api/accounts/me/')
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data['email'], 'user1@example.com')
@@ -123,7 +123,7 @@ class UserDataAccessTests(TestCase):
 
         # Try to update own profile
         response = self.client.put(
-            '/api/accounts/profile/',
+            '/api/accounts/me/',
             {'full_name': 'Updated User One'}
         )
 
@@ -136,7 +136,7 @@ class UserDataAccessTests(TestCase):
 
     def test_unauthenticated_user_cannot_access_profile(self):
         """Unauthenticated users should not access profile endpoint."""
-        response = self.client.get('/api/accounts/profile/')
+        response = self.client.get('/api/accounts/me/')
 
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 

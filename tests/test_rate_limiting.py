@@ -86,5 +86,5 @@ class RateLimitingTests(TestCase):
             'password': 'test'
         })
         
-        # Should either succeed or be rate limited, not give permission error
+        # Should either succeed, be rate limited, or return 401, not give permission error
         self.assertNotEqual(response.status_code, status.HTTP_403_FORBIDDEN)
