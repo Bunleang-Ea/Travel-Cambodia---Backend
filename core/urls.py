@@ -14,12 +14,21 @@ Including another URLconf
     1. Import the include() function: from django.urls import include, path
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
-
+from django.conf import settings
+from django.conf.urls.static import static
 from django.contrib import admin
+from django.http import HttpResponse, JsonResponse
 from django.urls import path, include
+
+from .views import api_schema_view, health_check, swagger_ui_view
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    # This sends any request starting with /api/ straight to your new api/urls.py file!
-    path('api/', include('api.urls')), 
+    path('api/accounts/', include('api.urls')),
+    path('api/health/', health_check, name='health-check'),
+    path('api/schema/', api_schema_view, name='api-schema'),
+    path('api/docs/', swagger_ui_view, name='api-docs'),
 ]
+
+if settings.DEBUG:
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

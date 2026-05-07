@@ -1,146 +1,262 @@
-from rest_framework import status
-from rest_framework.decorators import api_view
-from rest_framework.response import Response
+from django.contrib.auth import authenticate, logout
+from django.contrib.auth.models import Group, Permission
 from django.core.mail import send_mail
+from django.shortcuts import get_object_or_404
 from django.utils import timezone
-import random
-from datetime import timedelta
-from django.contrib.auth import authenticate
-from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework import permissions, status
+from rest_framework.authtoken.models import Token
+from rest_framework.generics import ListCreateAPIView, RetrieveAPIView
+from rest_framework.response import Response
+from rest_framework.views import APIView
 
-from .models import Place, OTPVerification
-# Add LoginSerializer to your existing import list
-from .serializers import PlaceSerializer, UserRegistrationSerializer, OTPVerifySerializer, LoginSerializer
-from django.contrib.auth import get_user_model
-User = get_user_model()
+from .models import PasswordResetOTP, SupportTicket, User
+from .serializers import (
+    AdminCreateUserSerializer,
+    GroupSerializer,
+    LoginSerializer,
+    PermissionSerializer,
+    PasswordResetConfirmSerializer,
+    PasswordResetRequestSerializer,
+    RegistrationSerializer,
+    RoleAssignmentSerializer,
+    RolePermissionAssignmentSerializer,
+    ProfileUpdateSerializer,
+    SupportTicketResponseSerializer,
+    SupportTicketSerializer,
+    UserSerializer,
+)
+from .throttles import (
+    LoginAttemptThrottle,
+    RegistrationThrottle,
+    PasswordResetThrottle,
+    AdminActionThrottle,
+)
 
-@api_view(['GET'])
-def get_all_places(request):
-    # 1. Grab all published places from the SQL Database
-    places = Place.objects.filter(publishing_status='Published')
-    
-    # 2. Translate them into JSON using the Serializer we just built
-    # many=True is required because we are translating a list of multiple places
-    serializer = PlaceSerializer(places, many=True)
-    
-    # 3. Send the JSON back to the frontend
-    return Response(serializer.data)
 
-@api_view(['POST'])
-def register_user(request):
-    # 1. Pass the incoming React data to our new serializer
-    serializer = UserRegistrationSerializer(data=request.data)
-    
-    if serializer.is_valid():
-        # 2. Save the user (The serializer automatically hashes the password)
+class RegisterView(APIView):
+    permission_classes = [permissions.AllowAny]
+    throttle_classes = [RegistrationThrottle]
+
+    def post(self, request):
+        serializer = RegistrationSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
         user = serializer.save()
+        token, _ = Token.objects.get_or_create(user=user)
+        data = UserSerializer(user).data
+        data['token'] = token.key
+        return Response(data, status=status.HTTP_201_CREATED)
 
-        # 3. Generate a random 6-digit OTP
-        otp_code = str(random.randint(100000, 999999))
-        
-        # 4. Set expiration time to 10 minutes from exactly right now
-        expiry_time = timezone.now() + timedelta(minutes=10)
 
-        # 5. Save the OTP to the database, linked to this specific user
-        OTPVerification.objects.create(
-            user=user,
-            otp_code=otp_code,
-            expired_at=expiry_time
-        )
+class LoginView(APIView):
+    permission_classes = [permissions.AllowAny]
+    throttle_classes = [LoginAttemptThrottle]
 
-        # 6. "Send" the Email (This will print in your terminal!)
+    def post(self, request):
+        serializer = LoginSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        user = serializer.validated_data['user']
+        token, _ = Token.objects.get_or_create(user=user)
+        data = UserSerializer(user).data
+        data['token'] = token.key
+        return Response(data)
+
+
+class PasswordResetRequestView(APIView):
+    permission_classes = [permissions.AllowAny]
+    throttle_classes = [PasswordResetThrottle]
+
+    def post(self, request):
+        serializer = PasswordResetRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        email = serializer.validated_data['email']
+        user = User.objects.get(email=email)
+        otp_record = PasswordResetOTP.create_otp(user)
         send_mail(
-            subject="Verify Your Travel Cambodia Account",
-            message=f"Welcome {user.first_name}! Your verification code is: {otp_code}. It expires in 10 minutes.",
-            from_email="noreply@travelcambodia.com",
-            recipient_list=[user.email],
-            fail_silently=False,
+            subject='Travel Cambodia Password Reset OTP',
+            message=f'Your password reset code is: {otp_record.code}',
+            from_email=None,
+            recipient_list=[email],
         )
+        return Response({'detail': 'OTP sent to email.'}, status=status.HTTP_200_OK)
 
-        # 7. Tell the frontend it was a success!
-        return Response({
-            "message": "User registered successfully. Please check your email for the OTP.",
-            "email": user.email
-        }, status=status.HTTP_201_CREATED)
 
-    # If the email is already taken, or data is missing, return a 400 Error
-    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+class PasswordResetConfirmView(APIView):
+    permission_classes = [permissions.AllowAny]
+    throttle_classes = [PasswordResetThrottle]
 
-@api_view(['POST'])
-def verify_otp(request):
-    serializer = OTPVerifySerializer(data=request.data)
-    
-    if serializer.is_valid():
-        email = serializer.validated_data['email']
-        otp_code = serializer.validated_data['otp_code']
-        
-        try:
-            # 1. Find the user
-            user = User.objects.get(email=email)
-            
-            # 2. Check if they are already verified
-            if user.is_verified:
-                return Response({"message": "User is already verified."}, status=status.HTTP_400_BAD_REQUEST)
-                
-            # 3. Find the valid, unused OTP for this user
-            # We use .first() because a user might have requested multiple codes; we check the most recent valid one
-            valid_otp = OTPVerification.objects.filter(
-                user=user,
-                otp_code=otp_code,
-                is_used=False,
-                expired_at__gt=timezone.now() # __gt means "Greater Than" right now
-            ).first()
-            
-            if valid_otp:
-                # 4. Success! Mark OTP as used and User as verified
-                valid_otp.is_used = True
-                valid_otp.save()
-                
-                user.is_verified = True
-                user.save()
-                
-                return Response({"message": "Account successfully verified!"}, status=status.HTTP_200_OK)
-            else:
-                return Response({"error": "Invalid or expired OTP."}, status=status.HTTP_400_BAD_REQUEST)
-                
-        except User.DoesNotExist:
-            return Response({"error": "User not found."}, status=status.HTTP_404_NOT_FOUND)
+    def post(self, request):
+        serializer = PasswordResetConfirmSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response({'detail': 'Password updated successfully.'}, status=status.HTTP_200_OK)
 
-    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-@api_view(['POST'])
-def login_user(request):
-    serializer = LoginSerializer(data=request.data)
-    
-    if serializer.is_valid():
-        email = serializer.validated_data['email']
-        password = serializer.validated_data['password']
+class UserProfileView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
 
-        # 1. Django's built-in secure authentication check
-        # (Remember: behind the scenes we mapped email to username!)
-        user = authenticate(username=email, password=password)
+    def get(self, request):
+        serializer = UserSerializer(request.user)
+        return Response(serializer.data)
 
-        if user is not None:
-            # 2. Check if they actually verified their email
-            if not user.is_verified:
-                return Response(
-                    {"error": "Please verify your email with the OTP sent to you before logging in."}, 
-                    status=status.HTTP_403_FORBIDDEN
-                )
+    def put(self, request):
+        serializer = ProfileUpdateSerializer(request.user, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(UserSerializer(request.user).data)
 
-            # 3. Success! Generate the JWT VIP Wristbands
-            refresh = RefreshToken.for_user(user)
 
-            return Response({
-                'message': 'Login successful!',
-                'email': user.email,
-                'tokens': {
-                    'refresh': str(refresh),
-                    'access': str(refresh.access_token),
-                }
-            }, status=status.HTTP_200_OK)
-            
+class LogoutView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        if request.auth is not None:
+            request.auth.delete()
         else:
-            return Response({"error": "Invalid email or password."}, status=status.HTTP_401_UNAUTHORIZED)
-            
-    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            logout(request)
+        return Response({'detail': 'Logged out successfully.'}, status=status.HTTP_200_OK)
+
+
+class AdminUserListView(APIView):
+    permission_classes = [permissions.IsAdminUser]
+    throttle_classes = [AdminActionThrottle]
+
+    def get(self, request):
+        serializer = UserSerializer(User.objects.all(), many=True)
+        return Response(serializer.data)
+
+
+class AdminCreateUserView(APIView):
+    permission_classes = [permissions.IsAdminUser]
+    throttle_classes = [AdminActionThrottle]
+
+    def post(self, request):
+        serializer = AdminCreateUserSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        user = serializer.save()
+        return Response(UserSerializer(user).data, status=status.HTTP_201_CREATED)
+
+
+class AdminDeleteUserView(APIView):
+    permission_classes = [permissions.IsAdminUser]
+    throttle_classes = [AdminActionThrottle]
+
+    def delete(self, request, pk):
+        try:
+            user = User.objects.get(pk=pk)
+        except User.DoesNotExist:
+            return Response({'detail': 'User not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        if user == request.user:
+            return Response(
+                {'detail': 'Admins cannot delete their own account while authenticated.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if user.is_superuser and not request.user.is_superuser:
+            return Response({'detail': 'Only superusers may delete superuser accounts.'}, status=status.HTTP_403_FORBIDDEN)
+
+        user.delete()
+        return Response({'detail': 'User deleted successfully.'}, status=status.HTTP_204_NO_CONTENT)
+
+
+class AdminRoleListView(APIView):
+    permission_classes = [permissions.IsAdminUser]
+
+    def get(self, request):
+        serializer = GroupSerializer(Group.objects.all(), many=True)
+        return Response(serializer.data)
+
+
+class AdminAssignRoleView(APIView):
+    permission_classes = [permissions.IsAdminUser]
+
+    def post(self, request):
+        serializer = RoleAssignmentSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        user = serializer.validated_data['user']
+        role_name = serializer.validated_data['role']
+        group, _ = Group.objects.get_or_create(name=role_name)
+        group.user_set.add(user)
+        return Response({'detail': f'Role \"{role_name}\" assigned to {user.email}.'})
+
+
+class AdminRemoveRoleView(APIView):
+    permission_classes = [permissions.IsAdminUser]
+
+    def post(self, request):
+        serializer = RoleAssignmentSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        user = serializer.validated_data['user']
+        role_name = serializer.validated_data['role']
+        try:
+            group = Group.objects.get(name=role_name)
+        except Group.DoesNotExist:
+            return Response({'detail': 'Role not found.'}, status=status.HTTP_404_NOT_FOUND)
+        group.user_set.remove(user)
+        return Response({'detail': f'Role \"{role_name}\" removed from {user.email}.'})
+
+
+class AdminPermissionListView(APIView):
+    permission_classes = [permissions.IsAdminUser]
+
+    def get(self, request):
+        serializer = PermissionSerializer(Permission.objects.all(), many=True)
+        return Response(serializer.data)
+
+
+class AdminAssignPermissionToRoleView(APIView):
+    permission_classes = [permissions.IsAdminUser]
+
+    def post(self, request):
+        serializer = RolePermissionAssignmentSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        group = serializer.validated_data['group']
+        permission = serializer.validated_data['permission']
+        group.permissions.add(permission)
+        return Response({'detail': f'Permission {permission.codename} assigned to role {group.name}.'})
+
+
+class AdminRemovePermissionFromRoleView(APIView):
+    permission_classes = [permissions.IsAdminUser]
+
+    def post(self, request):
+        serializer = RolePermissionAssignmentSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        group = serializer.validated_data['group']
+        permission = serializer.validated_data['permission']
+        group.permissions.remove(permission)
+        return Response({'detail': f'Permission {permission.codename} removed from role {group.name}.'})
+
+
+class SupportTicketListCreateView(ListCreateAPIView):
+    serializer_class = SupportTicketSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        if self.request.user.is_staff:
+            return SupportTicket.objects.all()
+        return SupportTicket.objects.filter(user=self.request.user)
+
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user)
+
+
+class SupportTicketDetailView(RetrieveAPIView):
+    serializer_class = SupportTicketSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        if self.request.user.is_staff:
+            return SupportTicket.objects.all()
+        return SupportTicket.objects.filter(user=self.request.user)
+
+
+class SupportTicketRespondView(APIView):
+    permission_classes = [permissions.IsAdminUser]
+
+    def post(self, request, pk):
+        ticket = get_object_or_404(SupportTicket, pk=pk)
+        serializer = SupportTicketResponseSerializer(ticket, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(SupportTicketSerializer(ticket).data)

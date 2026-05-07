@@ -1,11 +1,43 @@
 from django.urls import path
-from . import views
+
+from .views import (
+    AdminAssignPermissionToRoleView,
+    AdminCreateUserView,
+    AdminDeleteUserView,
+    AdminPermissionListView,
+    AdminRemovePermissionFromRoleView,
+    AdminRemoveRoleView,
+    AdminRoleListView,
+    AdminUserListView,
+    RegisterView,
+    LoginView,
+    PasswordResetConfirmView,
+    PasswordResetRequestView,
+    UserProfileView,
+    LogoutView,
+    AdminAssignRoleView,
+    SupportTicketDetailView,
+    SupportTicketListCreateView,
+    SupportTicketRespondView,
+)
 
 urlpatterns = [
-    path('places/', views.get_all_places, name='get_all_places'),
-    
-    # New Auth Endpoints
-    path('auth/register/', views.register_user, name='register_user'),
-    path('auth/verify-otp/', views.verify_otp, name='verify_otp'),
-    path('auth/login/', views.login_user, name='login_user'),
+    path('register/', RegisterView.as_view(), name='account-register'),
+    path('login/', LoginView.as_view(), name='account-login'),
+    path('password-reset/request/', PasswordResetRequestView.as_view(), name='password-reset-request'),
+    path('password-reset/confirm/', PasswordResetConfirmView.as_view(), name='password-reset-confirm'),
+    path('me/', UserProfileView.as_view(), name='account-profile'),
+    path('logout/', LogoutView.as_view(), name='account-logout'),
+    path('admin/users/', AdminUserListView.as_view(), name='admin-user-list'),
+    path('admin/users/create/', AdminCreateUserView.as_view(), name='admin-create-user'),
+    path('admin/users/<int:pk>/delete/', AdminDeleteUserView.as_view(), name='admin-delete-user'),
+    path('admin/roles/', AdminRoleListView.as_view(), name='admin-role-list'),
+    path('admin/roles/assign/', AdminAssignRoleView.as_view(), name='admin-assign-role'),
+    path('admin/roles/remove/', AdminRemoveRoleView.as_view(), name='admin-remove-role'),
+    path('admin/permissions/', AdminPermissionListView.as_view(), name='admin-permission-list'),
+    path('admin/roles/permissions/assign/', AdminAssignPermissionToRoleView.as_view(), name='admin-role-permission-assign'),
+    path('admin/roles/permissions/remove/', AdminRemovePermissionFromRoleView.as_view(), name='admin-role-permission-remove'),
+    path('support-tickets/', SupportTicketListCreateView.as_view(), name='support-ticket-list-create'),
+    path('support-tickets/<int:pk>/', SupportTicketDetailView.as_view(), name='support-ticket-detail'),
+    path('support-tickets/<int:pk>/respond/', SupportTicketRespondView.as_view(), name='support-ticket-respond'),
 ]
