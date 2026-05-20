@@ -98,3 +98,27 @@ class SavedPlaceAdmin(admin.ModelAdmin):
     list_display = ('user', 'place', 'saved_at')
     list_filter = ('saved_at',)
     search_fields = ('user__email', 'place__name')
+
+from .models import Itinerary, ItineraryItem, Review, ReviewPhoto
+
+class ItineraryItemInline(admin.TabularInline):
+    model = ItineraryItem
+    extra = 1
+
+@admin.register(Itinerary)
+class ItineraryAdmin(admin.ModelAdmin):
+    list_display = ('title', 'user', 'start_date', 'end_date')
+    list_filter = ('start_date',)
+    search_fields = ('title', 'user__email')
+    inlines = [ItineraryItemInline]
+
+class ReviewPhotoInline(admin.TabularInline):
+    model = ReviewPhoto
+    extra = 1
+
+@admin.register(Review)
+class ReviewAdmin(admin.ModelAdmin):
+    list_display = ('user', 'place', 'rating', 'created_at')
+    list_filter = ('rating', 'created_at')
+    search_fields = ('user__email', 'place__name', 'comment')
+    inlines = [ReviewPhotoInline]
