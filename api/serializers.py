@@ -6,7 +6,8 @@ from rest_framework import serializers
 
 from .models import (
     PasswordResetOTP, SupportTicket, User, 
-    Category, Location, Tag, Place, PlaceGallery, SavedPlace
+    Category, Location, Tag, Place, PlaceGallery, SavedPlace,
+    Itinerary, ItineraryItem, Review, ReviewPhoto
 )
 from .sanitizers import XSSSanitizer
 from .validators import (
@@ -391,3 +392,38 @@ class PlaceListSerializer(serializers.ModelSerializer):
     class Meta:
         model = Place
         fields = ('place_id', 'name', 'description', 'average_rating', 'review_count', 'view_count', 'category_name', 'location_name', 'is_featured', 'publishing_status')
+
+class ItineraryItemSerializer(serializers.ModelSerializer):
+    place_name = serializers.CharField(source='place.name', read_only=True)
+
+    class Meta:
+        model = ItineraryItem
+        fields = ('item_id', 'itinerary', 'place', 'place_name', 'day_number', 'planned_time', 'notes')
+        read_only_fields = ('item_id',)
+
+class ItinerarySerializer(serializers.ModelSerializer):
+    items = ItineraryItemSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = Itinerary
+        fields = ('itinerary_id', 'user', 'title', 'description', 'start_date', 'end_date', 'created_at', 'updated_at', 'items')
+        read_only_fields = ('itinerary_id', 'user', 'created_at', 'updated_at')
+
+class ReviewPhotoSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ReviewPhoto
+        fields = ('photo_id', 'image_url')
+
+class ReviewSerializer(serializers.ModelSerializer):
+    photos = ReviewPhotoSerializer(many=True, read_only=True)
+    user_name = serializers.CharField(source='user.full_name', read_only=True)
+    
+    class Meta:
+        model = Review
+        fields = ('review_id', 'user', 'user_name', 'place', 'rating', 'comment', 'created_at', 'updated_at', 'photos')
+        read_only_fields = ('review_id', 'user', 'created_at', 'updated_at')
+        
+    def validate_rating(self, value):
+        if value < 1 or value > 5:
+            raise serializers.ValidationError('Rating must be between 1 and 5.')
+        return value

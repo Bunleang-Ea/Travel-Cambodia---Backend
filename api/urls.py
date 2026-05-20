@@ -1,4 +1,5 @@
-from django.urls import path
+from django.urls import path, include
+from rest_framework.routers import DefaultRouter
 
 from .views import (
     AdminAssignPermissionToRoleView,
@@ -48,4 +49,29 @@ urlpatterns = [
     path('support-tickets/', SupportTicketListCreateView.as_view(), name='support-ticket-list-create'),
     path('support-tickets/<int:pk>/', SupportTicketDetailView.as_view(), name='support-ticket-detail'),
     path('support-tickets/<int:pk>/respond/', SupportTicketRespondView.as_view(), name='support-ticket-respond'),
+]
+
+from .views import ItineraryViewSet, ItineraryItemViewSet, ReviewViewSet
+
+router = DefaultRouter()
+router.register(r'itineraries', ItineraryViewSet, basename='itinerary')
+router.register(r'itinerary-items', ItineraryItemViewSet, basename='itinerary-item')
+router.register(r'reviews', ReviewViewSet, basename='review')
+
+urlpatterns += [
+    path('', include(router.urls)),
+]
+
+from django.urls import include
+from rest_framework.routers import DefaultRouter
+
+from .views import ItineraryViewSet, ItineraryItemViewSet, ReviewViewSet
+
+router = DefaultRouter()
+router.register(r'itineraries', ItineraryViewSet, basename='itinerary')
+router.register(r'itinerary-items', ItineraryItemViewSet, basename='itinerary-item')
+router.register(r'reviews', ReviewViewSet, basename='review')
+
+urlpatterns += [
+    path('', include(router.urls)),
 ]

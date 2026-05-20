@@ -11,7 +11,7 @@ from rest_framework.views import APIView
 
 from .models import (
     PasswordResetOTP, SupportTicket, User, 
-    Category, Tag, Place
+    Category, Tag, Place, Itinerary, ItineraryItem, Review, ReviewPhoto
 )
 from .serializers import (
     AdminCreateUserSerializer,
@@ -30,6 +30,10 @@ from .serializers import (
     PlaceSerializer,
     CategorySerializer,
     TagSerializer,
+    ItinerarySerializer,
+    ItineraryItemSerializer,
+    ReviewSerializer,
+    ReviewPhotoSerializer,
 )
 from .throttles import (
     LoginAttemptThrottle,
@@ -329,3 +333,40 @@ class TagListView(generics.ListAPIView):
     queryset = Tag.objects.all()
     serializer_class = TagSerializer
     permission_classes = [permissions.AllowAny]
+
+from rest_framework import viewsets
+
+class ItineraryViewSet(viewsets.ModelViewSet):
+    serializer_class = ItinerarySerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        return Itinerary.objects.filter(user=self.request.user)
+
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user)
+
+class ItineraryItemViewSet(viewsets.ModelViewSet):
+    serializer_class = ItineraryItemSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        return ItineraryItem.objects.filter(itinerary__user=self.request.user)
+
+class ReviewViewSet(viewsets.ModelViewSet):
+    serializer_class = ReviewSerializer
+    
+    def get_permissions(self):
+        if self.action in ['list', 'retrieve']:
+            return [permissions.AllowAny()]
+        return [permissions.IsAuthenticated()]
+
+    def get_queryset(self):
+        queryset = Review.objects.all()
+        place_id = self.request.query_params.get('place_id', None)
+        if place_id:
+            queryset = queryset.filter(place_id=place_id)
+        return queryset
+
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user)
