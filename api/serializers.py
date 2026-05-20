@@ -4,7 +4,10 @@ from django.contrib.auth.password_validation import validate_password
 from django.utils import timezone
 from rest_framework import serializers
 
-from .models import PasswordResetOTP, SupportTicket, User
+from .models import (
+    PasswordResetOTP, SupportTicket, User, 
+    Category, Location, Tag, Place, PlaceGallery, SavedPlace
+)
 from .sanitizers import XSSSanitizer
 from .validators import (
     validate_email_format,
@@ -350,3 +353,41 @@ class AdminCreateUserSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         password = validated_data.pop('password')
         return User.objects.create_user(password=password, **validated_data)
+
+class CategorySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Category
+        fields = '__all__'
+
+class LocationSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Location
+        fields = '__all__'
+
+class TagSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Tag
+        fields = '__all__'
+
+class PlaceGallerySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = PlaceGallery
+        fields = '__all__'
+
+class PlaceSerializer(serializers.ModelSerializer):
+    category = CategorySerializer(read_only=True)
+    location = LocationSerializer(read_only=True)
+    tags = TagSerializer(many=True, read_only=True)
+    gallery_images = PlaceGallerySerializer(many=True, read_only=True)
+
+    class Meta:
+        model = Place
+        fields = '__all__'
+
+class PlaceListSerializer(serializers.ModelSerializer):
+    category_name = serializers.CharField(source='category.name', read_only=True)
+    location_name = serializers.CharField(source='location.name', read_only=True)
+
+    class Meta:
+        model = Place
+        fields = ('place_id', 'name', 'description', 'average_rating', 'review_count', 'view_count', 'category_name', 'location_name', 'is_featured', 'publishing_status')

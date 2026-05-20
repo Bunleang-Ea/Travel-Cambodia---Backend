@@ -9,7 +9,10 @@ from rest_framework.generics import ListCreateAPIView, RetrieveAPIView
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from .models import PasswordResetOTP, SupportTicket, User
+from .models import (
+    PasswordResetOTP, SupportTicket, User, 
+    Category, Tag, Place
+)
 from .serializers import (
     AdminCreateUserSerializer,
     GroupSerializer,
@@ -24,6 +27,9 @@ from .serializers import (
     SupportTicketResponseSerializer,
     SupportTicketSerializer,
     UserSerializer,
+    PlaceSerializer,
+    CategorySerializer,
+    TagSerializer,
 )
 from .throttles import (
     LoginAttemptThrottle,
@@ -260,3 +266,66 @@ class SupportTicketRespondView(APIView):
         serializer.is_valid(raise_exception=True)
         serializer.save()
         return Response(SupportTicketSerializer(ticket).data)
+
+from django.db.models import Q
+from rest_framework import generics
+from rest_framework.pagination import PageNumberPagination
+
+class PlacePagination(PageNumberPagination):
+    page_size = 10
+    page_size_query_param = 'page_size'
+    max_page_size = 100
+
+class PlaceListView(generics.ListAPIView):
+    serializer_class = PlaceSerializer
+    permission_classes = [permissions.AllowAny]
+    pagination_class = PlacePagination
+
+    def get_queryset(self):
+        queryset = Place.objects.filter(publishing_status='Published')
+        
+        keyword = self.request.query_params.get('keyword', None)
+        if keyword:
+            queryset = queryset.filter(
+                Q(name__icontains=keyword) |
+                Q(description__icontains=keyword) |
+                Q(location__name__icontains=keyword)
+            )
+
+        category_id = self.request.query_params.get('category_id', None)
+        if category_id:
+            queryset = queryset.filter(category_id=category_id)
+            
+        category_name = self.request.query_params.get('category', None)
+        if category_name:
+            queryset = queryset.filter(category__name__icontains=category_name)
+
+        tags = self.request.query_params.get('tags', None)
+        if tags:
+            tag_list = [tag.strip() for tag in tags.split(',')]
+            queryset = queryset.filter(tags__name__in=tag_list).distinct()
+
+        return queryset
+
+class PlaceDetailView(generics.RetrieveAPIView):
+    queryset = Place.objects.filter(publishing_status='Published')
+    serializer_class = PlaceSerializer
+    permission_classes = [permissions.AllowAny]
+    lookup_field = 'place_id'
+
+    def retrieve(self, request, *args, **kwargs):
+        instance = self.get_object()
+        instance.view_count += 1
+        instance.save(update_fields=['view_count'])
+        serializer = self.get_serializer(instance)
+        return Response(serializer.data)
+
+class CategoryListView(generics.ListAPIView):
+    queryset = Category.objects.all()
+    serializer_class = CategorySerializer
+    permission_classes = [permissions.AllowAny]
+
+class TagListView(generics.ListAPIView):
+    queryset = Tag.objects.all()
+    serializer_class = TagSerializer
+    permission_classes = [permissions.AllowAny]

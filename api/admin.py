@@ -1,7 +1,10 @@
 from django.contrib import admin
 from django.contrib.auth.models import Group, Permission
 
-from .models import PasswordResetOTP, SupportTicket, User
+from .models import (
+    PasswordResetOTP, SupportTicket, User,
+    Category, Location, Tag, Place, PlaceGallery, SavedPlace
+)
 
 for model in (Group, Permission):
     try:
@@ -63,3 +66,35 @@ class SupportTicketAdmin(admin.ModelAdmin):
     list_display = ('subject', 'user', 'status', 'created_at', 'updated_at')
     list_filter = ('status', 'created_at')
     search_fields = ('subject', 'description', 'response', 'user__email')
+
+@admin.register(Category)
+class CategoryAdmin(admin.ModelAdmin):
+    list_display = ('name',)
+    search_fields = ('name',)
+
+@admin.register(Location)
+class LocationAdmin(admin.ModelAdmin):
+    list_display = ('name',)
+    search_fields = ('name',)
+
+@admin.register(Tag)
+class TagAdmin(admin.ModelAdmin):
+    list_display = ('name',)
+    search_fields = ('name',)
+
+class PlaceGalleryInline(admin.TabularInline):
+    model = PlaceGallery
+    extra = 1
+
+@admin.register(Place)
+class PlaceAdmin(admin.ModelAdmin):
+    list_display = ('name', 'location', 'category', 'publishing_status', 'is_featured', 'average_rating')
+    list_filter = ('publishing_status', 'is_featured', 'category', 'location')
+    search_fields = ('name', 'description', 'contact_info')
+    inlines = [PlaceGalleryInline]
+
+@admin.register(SavedPlace)
+class SavedPlaceAdmin(admin.ModelAdmin):
+    list_display = ('user', 'place', 'saved_at')
+    list_filter = ('saved_at',)
+    search_fields = ('user__email', 'place__name')

@@ -19,9 +19,17 @@ from .views import (
     SupportTicketDetailView,
     SupportTicketListCreateView,
     SupportTicketRespondView,
+    PlaceListView,
+    PlaceDetailView,
+    CategoryListView,
+    TagListView,
 )
 
 urlpatterns = [
+    path('places/', PlaceListView.as_view(), name='place-list'),
+    path('places/<int:place_id>/', PlaceDetailView.as_view(), name='place-detail'),
+    path('categories/', CategoryListView.as_view(), name='category-list'),
+    path('tags/', TagListView.as_view(), name='tag-list'),
     path('register/', RegisterView.as_view(), name='account-register'),
     path('login/', LoginView.as_view(), name='account-login'),
     path('password-reset/request/', PasswordResetRequestView.as_view(), name='password-reset-request'),
