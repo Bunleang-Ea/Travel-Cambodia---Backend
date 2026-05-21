@@ -13,6 +13,11 @@ https://docs.djangoproject.com/en/6.0/ref/settings/
 import os
 from pathlib import Path
 
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
+
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -81,20 +86,30 @@ WSGI_APPLICATION = 'core.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/6.0/ref/settings/#databases
 
-DATABASES = {
-    'default': {
-        'ENGINE': 'mssql',
-        'NAME': 'travel_cambodia_db',
-        'HOST': 'BABABUII\\SQLEXPRESS',  # Or your specific SQL Server instance name, like 'localhost\\SQLEXPRESS'
-        'PORT': '',
-        'USER': '',
-        'PASSWORD': '',
-        'OPTIONS': {
-            'driver': 'ODBC Driver 17 for SQL Server',  # Standard driver for Windows
-            'extra_params': 'Trusted_Connection=yes;',  # This uses Windows Authentication so you don't need a password here
-        },
+if os.environ.get('USE_SQLITE_DB', 'False').lower() == 'true':
+    # Local SQLite for developers who don't have SQL Server
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': BASE_DIR / 'db.sqlite3',
+        }
     }
-}
+else:
+    # Production/Main SQL Server Database
+    DATABASES = {
+        'default': {
+            'ENGINE': 'mssql',
+            'NAME': os.environ.get('DB_NAME', 'travel_cambodia_db'),
+            'HOST': os.environ.get('DB_HOST', 'BABABUII\\SQLEXPRESS'),
+            'PORT': os.environ.get('DB_PORT', ''),
+            'USER': os.environ.get('DB_USER', ''),
+            'PASSWORD': os.environ.get('DB_PASSWORD', ''),
+            'OPTIONS': {
+                'driver': 'ODBC Driver 17 for SQL Server',
+                'extra_params': 'Trusted_Connection=yes;',
+            },
+        }
+    }
 
 
 # Password validation

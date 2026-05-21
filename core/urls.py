@@ -24,7 +24,7 @@ from .views import api_schema_view, health_check, swagger_ui_view
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('api/accounts/', include('api.urls')),
+    path('api/', include('api.urls')),
     path('api/health/', health_check, name='health-check'),
     path('api/schema/', api_schema_view, name='api-schema'),
     path('api/docs/', swagger_ui_view, name='api-docs'),
