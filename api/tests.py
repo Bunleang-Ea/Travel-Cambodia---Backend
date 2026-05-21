@@ -4,7 +4,7 @@ from rest_framework import status
 from rest_framework.authtoken.models import Token
 from rest_framework.test import APITestCase
 
-from .models import PasswordResetOTP, SupportTicket
+from .models import Category, Location, PasswordResetOTP, Place, PlaceGallery, SupportTicket, Tag
 
 User = get_user_model()
 
@@ -257,3 +257,88 @@ class AccountFlowTests(APITestCase):
             HTTP_AUTHORIZATION=f'Token {self.user_token.key}',
         )
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+
+class PublicPlaceEndpointsTests(APITestCase):
+    def setUp(self):
+        self.category_temple = Category.objects.create(name='Temple')
+        self.category_beach = Category.objects.create(name='Beach')
+        self.location_siem_reap = Location.objects.create(name='Siem Reap')
+        self.location_sihanoukville = Location.objects.create(name='Sihanoukville')
+        self.tag_culture = Tag.objects.create(name='culture')
+        self.tag_family = Tag.objects.create(name='family')
+
+        self.published_place = Place.objects.create(
+            name='Angkor Wat',
+            description='Ancient temple complex',
+            publishing_status='Published',
+            category=self.category_temple,
+            location=self.location_siem_reap,
+        )
+        self.published_place.tags.set([self.tag_culture, self.tag_family])
+        PlaceGallery.objects.create(
+            place=self.published_place,
+            image_url='https://example.com/angkor.jpg',
+            is_main=True,
+        )
+
+        self.other_published_place = Place.objects.create(
+            name='Otres Beach',
+            description='Relaxing beach',
+            publishing_status='Published',
+            category=self.category_beach,
+            location=self.location_sihanoukville,
+        )
+
+        self.draft_place = Place.objects.create(
+            name='Unpublished Spot',
+            description='Draft place',
+            publishing_status='Draft',
+            category=self.category_temple,
+            location=self.location_siem_reap,
+        )
+
+    def test_place_list_returns_paginated_published_places_only(self):
+        response = self.client.get(reverse('place-list'))
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn('results', response.data)
+        returned_ids = {item['place_id'] for item in response.data['results']}
+        self.assertIn(self.published_place.place_id, returned_ids)
+        self.assertIn(self.other_published_place.place_id, returned_ids)
+        self.assertNotIn(self.draft_place.place_id, returned_ids)
+
+    def test_place_list_filters_and_validates_category_id(self):
+        response = self.client.get(reverse('place-list'), {'category_id': self.category_temple.id})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        returned_ids = {item['place_id'] for item in response.data['results']}
+        self.assertEqual(returned_ids, {self.published_place.place_id})
+
+        invalid_response = self.client.get(reverse('place-list'), {'category_id': 'abc'})
+        self.assertEqual(invalid_response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('category_id', invalid_response.data)
+
+    def test_place_detail_increments_view_count(self):
+        detail_url = reverse('place-detail', kwargs={'pk': self.published_place.place_id})
+
+        response = self.client.get(detail_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['place_id'], self.published_place.place_id)
+        self.assertEqual(response.data['view_count'], 1)
+
+        second_response = self.client.get(detail_url)
+        self.assertEqual(second_response.status_code, status.HTTP_200_OK)
+        self.assertEqual(second_response.data['view_count'], 2)
+
+    def test_public_category_and_tag_endpoints(self):
+        category_response = self.client.get(reverse('category-list'))
+        self.assertEqual(category_response.status_code, status.HTTP_200_OK)
+        category_names = {item['name'] for item in category_response.data}
+        self.assertIn('Temple', category_names)
+        self.assertIn('Beach', category_names)
+
+        tag_response = self.client.get(reverse('tag-list'))
+        self.assertEqual(tag_response.status_code, status.HTTP_200_OK)
+        tag_names = {item['name'] for item in tag_response.data}
+        self.assertIn('culture', tag_names)
+        self.assertIn('family', tag_names)
