@@ -1,4 +1,5 @@
-from django.urls import path
+from django.urls import path, include
+from rest_framework.routers import DefaultRouter
 
 from .views import (
     AdminAssignPermissionToRoleView,
@@ -19,9 +20,17 @@ from .views import (
     SupportTicketDetailView,
     SupportTicketListCreateView,
     SupportTicketRespondView,
+    PlaceListView,
+    PlaceDetailView,
+    CategoryListView,
+    TagListView,
 )
 
 urlpatterns = [
+    path('places/', PlaceListView.as_view(), name='place-list'),
+    path('places/<int:place_id>/', PlaceDetailView.as_view(), name='place-detail'),
+    path('categories/', CategoryListView.as_view(), name='category-list'),
+    path('tags/', TagListView.as_view(), name='tag-list'),
     path('register/', RegisterView.as_view(), name='account-register'),
     path('login/', LoginView.as_view(), name='account-login'),
     path('password-reset/request/', PasswordResetRequestView.as_view(), name='password-reset-request'),
@@ -40,4 +49,29 @@ urlpatterns = [
     path('support-tickets/', SupportTicketListCreateView.as_view(), name='support-ticket-list-create'),
     path('support-tickets/<int:pk>/', SupportTicketDetailView.as_view(), name='support-ticket-detail'),
     path('support-tickets/<int:pk>/respond/', SupportTicketRespondView.as_view(), name='support-ticket-respond'),
+]
+
+from .views import ItineraryViewSet, ItineraryItemViewSet, ReviewViewSet
+
+router = DefaultRouter()
+router.register(r'itineraries', ItineraryViewSet, basename='itinerary')
+router.register(r'itinerary-items', ItineraryItemViewSet, basename='itinerary-item')
+router.register(r'reviews', ReviewViewSet, basename='review')
+
+urlpatterns += [
+    path('', include(router.urls)),
+]
+
+from django.urls import include
+from rest_framework.routers import DefaultRouter
+
+from .views import ItineraryViewSet, ItineraryItemViewSet, ReviewViewSet
+
+router = DefaultRouter()
+router.register(r'itineraries', ItineraryViewSet, basename='itinerary')
+router.register(r'itinerary-items', ItineraryItemViewSet, basename='itinerary-item')
+router.register(r'reviews', ReviewViewSet, basename='review')
+
+urlpatterns += [
+    path('', include(router.urls)),
 ]
