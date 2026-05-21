@@ -1,11 +1,14 @@
 from django.contrib.auth import authenticate, logout
 from django.contrib.auth.models import Group, Permission
 from django.core.mail import send_mail
+from django.db.models import F, Q
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from rest_framework import permissions, status
 from rest_framework.authtoken.models import Token
-from rest_framework.generics import ListCreateAPIView, RetrieveAPIView
+from rest_framework.exceptions import ValidationError
+from rest_framework.generics import ListCreateAPIView, ListAPIView, RetrieveAPIView
+from rest_framework.pagination import PageNumberPagination
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -266,23 +269,20 @@ class SupportTicketRespondView(APIView):
         serializer.is_valid(raise_exception=True)
         serializer.save()
         return Response(SupportTicketSerializer(ticket).data)
-
-from django.db.models import Q
-from rest_framework import generics
-from rest_framework.pagination import PageNumberPagination
-
 class PlacePagination(PageNumberPagination):
     page_size = 10
     page_size_query_param = 'page_size'
     max_page_size = 100
 
-class PlaceListView(generics.ListAPIView):
+class PlaceListView(ListAPIView):
     serializer_class = PlaceSerializer
     permission_classes = [permissions.AllowAny]
     pagination_class = PlacePagination
 
     def get_queryset(self):
-        queryset = Place.objects.filter(publishing_status='Published')
+        queryset = Place.objects.filter(publishing_status='Published').select_related(
+            'category', 'location'
+        ).prefetch_related('tags', 'gallery_images')
         
         keyword = self.request.query_params.get('keyword', None)
         if keyword:
@@ -294,6 +294,10 @@ class PlaceListView(generics.ListAPIView):
 
         category_id = self.request.query_params.get('category_id', None)
         if category_id:
+            try:
+                category_id = int(category_id)
+            except (TypeError, ValueError):
+                raise ValidationError({'category_id': 'A valid integer is required.'})
             queryset = queryset.filter(category_id=category_id)
             
         category_name = self.request.query_params.get('category', None)
@@ -307,25 +311,26 @@ class PlaceListView(generics.ListAPIView):
 
         return queryset
 
-class PlaceDetailView(generics.RetrieveAPIView):
-    queryset = Place.objects.filter(publishing_status='Published')
+class PlaceDetailView(RetrieveAPIView):
+    queryset = Place.objects.filter(publishing_status='Published').select_related(
+        'category', 'location'
+    ).prefetch_related('tags', 'gallery_images')
     serializer_class = PlaceSerializer
     permission_classes = [permissions.AllowAny]
-    lookup_field = 'place_id'
 
     def retrieve(self, request, *args, **kwargs):
         instance = self.get_object()
-        instance.view_count += 1
-        instance.save(update_fields=['view_count'])
+        Place.objects.filter(pk=instance.pk).update(view_count=F('view_count') + 1)
+        instance.refresh_from_db(fields=['view_count'])
         serializer = self.get_serializer(instance)
         return Response(serializer.data)
 
-class CategoryListView(generics.ListAPIView):
+class CategoryListView(ListAPIView):
     queryset = Category.objects.all()
     serializer_class = CategorySerializer
     permission_classes = [permissions.AllowAny]
 
-class TagListView(generics.ListAPIView):
+class TagListView(ListAPIView):
     queryset = Tag.objects.all()
     serializer_class = TagSerializer
     permission_classes = [permissions.AllowAny]

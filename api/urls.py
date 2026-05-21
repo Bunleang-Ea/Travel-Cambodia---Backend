@@ -27,7 +27,7 @@ from .views import (
 
 urlpatterns = [
     path('places/', PlaceListView.as_view(), name='place-list'),
-    path('places/<int:place_id>/', PlaceDetailView.as_view(), name='place-detail'),
+    path('places/<int:pk>/', PlaceDetailView.as_view(), name='place-detail'),
     path('categories/', CategoryListView.as_view(), name='category-list'),
     path('tags/', TagListView.as_view(), name='tag-list'),
     path('register/', RegisterView.as_view(), name='account-register'),
