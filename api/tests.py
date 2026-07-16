@@ -50,9 +50,26 @@ class AccountFlowTests(APITestCase):
             },
             format='json',
         )
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertIn('token', response.data)
-        self.assertEqual(response.data['email'], 'newuser@example.com')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['detail'], 'OTP sent to email. Please verify to complete registration.')
+
+        # Retrieve the OTP record
+        otp_record = PasswordResetOTP.objects.filter(user__email='newuser@example.com', used=False).first()
+        self.assertIsNotNone(otp_record)
+
+        # Verify registration with OTP
+        verify_url = reverse('account-register-verify')
+        verify_response = self.client.post(
+            verify_url,
+            {
+                'email': 'newuser@example.com',
+                'otp': otp_record.code,
+            },
+            format='json',
+        )
+        self.assertEqual(verify_response.status_code, status.HTTP_200_OK)
+        self.assertIn('token', verify_response.data)
+        self.assertEqual(verify_response.data['email'], 'newuser@example.com')
 
         response = self.client.post(
             self.login_url,
@@ -349,7 +366,7 @@ class PublicPlaceEndpointsTests(APITestCase):
 
         invalid_response = self.client.get(reverse('place-list'), {'category_id': 'abc'})
         self.assertEqual(invalid_response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn('category_id', invalid_response.data)
+        self.assertIn('category_id', invalid_response.data.get('errors', {}))
 
     def test_place_detail_increments_view_count(self):
         detail_url = reverse('place-detail', kwargs={'pk': self.published_place.place_id})
