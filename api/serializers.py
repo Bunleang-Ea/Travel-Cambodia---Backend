@@ -1093,6 +1093,25 @@ class ItinerarySerializer(serializers.ModelSerializer):
 
         return title, image_url, description, start_date, end_date
 
+    def validate(self, attrs):
+        from django.utils import timezone
+        
+        start_date = attrs.get('start_date', attrs.get('startDate', None))
+        end_date = attrs.get('end_date', attrs.get('endDate', None))
+
+        today = timezone.localdate()
+
+        if self.instance is None:  # Creating a new itinerary
+            if start_date and start_date < today:
+                raise serializers.ValidationError({"startDate": "Start date cannot be in the past."})
+            if end_date and end_date < today:
+                raise serializers.ValidationError({"endDate": "End date cannot be in the past."})
+
+        if start_date and end_date and end_date < start_date:
+            raise serializers.ValidationError({"endDate": "End date cannot be before start date."})
+
+        return attrs
+
     def create(self, validated_data, **kwargs):
         user = kwargs.pop('user', None)
         title, image_url, description, start_date, end_date = self._pop_frontend_fields(validated_data)

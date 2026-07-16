@@ -451,6 +451,41 @@ class ItineraryEndpointsTests(APITestCase):
         self.assertEqual(response.data['title'], 'Original Title')
         self.assertEqual(response.data['description'], 'Updated notes only')
 
+    def test_create_itinerary_with_past_start_date_fails(self):
+        import datetime
+        from django.utils import timezone
+        past_date = (timezone.localdate() - datetime.timedelta(days=1)).isoformat()
+        response = self.client.post(
+            self.itinerary_list_url,
+            {
+                'destination': 'Past Trip',
+                'startDate': past_date,
+                'endDate': timezone.localdate().isoformat(),
+            },
+            format='json',
+            **self._auth_headers(),
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('startDate', response.data.get('errors', {}))
+
+    def test_create_itinerary_with_end_date_before_start_date_fails(self):
+        import datetime
+        from django.utils import timezone
+        start = timezone.localdate() + datetime.timedelta(days=5)
+        end = timezone.localdate() + datetime.timedelta(days=2)
+        response = self.client.post(
+            self.itinerary_list_url,
+            {
+                'destination': 'Invalid Date Order Trip',
+                'startDate': start.isoformat(),
+                'endDate': end.isoformat(),
+            },
+            format='json',
+            **self._auth_headers(),
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('endDate', response.data.get('errors', {}))
+
 
 class ReviewEndpointsTests(APITestCase):
     def setUp(self):
