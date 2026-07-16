@@ -16,10 +16,17 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 # Load environment variables from .env file
-load_dotenv()
+load_dotenv(override=True)
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
+
+
+def env_bool(name, default=False):
+    value = os.environ.get(name)
+    if value is None:
+        return default
+    return str(value).strip().lower() in ("1", "true", "yes", "on")
 
 
 # Quick-start development settings - unsuitable for production
@@ -153,7 +160,7 @@ AUTH_USER_MODEL = 'api.User'
 
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
-        'rest_framework.authentication.TokenAuthentication',
+        'api.authentication.BearerOrTokenAuthentication',
         'rest_framework.authentication.SessionAuthentication',
     ],
     'DEFAULT_PERMISSION_CLASSES': [
@@ -167,8 +174,8 @@ REST_FRAMEWORK = {
         'anon': '20/min',
         'user': '100/min',
         'login_attempt': '5/min',
-        'registration': '3/hour',
-        'password_reset': '3/hour',
+        'registration': '50/hour',  # Increased for development testing
+        'password_reset': '50/hour',  # Increased for development testing
         'user_auth': '1000/hour',
         'admin_action': '500/hour',
     },
@@ -180,6 +187,37 @@ EMAIL_BACKEND = os.environ.get(
     'django.core.mail.backends.console.EmailBackend',
 )
 DEFAULT_FROM_EMAIL = os.environ.get('DJANGO_DEFAULT_FROM_EMAIL', 'webmaster@localhost')
+SERVER_EMAIL = os.environ.get('DJANGO_SERVER_EMAIL', DEFAULT_FROM_EMAIL)
+
+# SMTP provider configuration for real email delivery.
+# Used when DJANGO_EMAIL_BACKEND is set to:
+# django.core.mail.backends.smtp.EmailBackend
+EMAIL_HOST = os.environ.get('DJANGO_EMAIL_HOST', 'smtp.gmail.com')
+EMAIL_PORT = int(os.environ.get('DJANGO_EMAIL_PORT', '587'))
+EMAIL_HOST_USER = os.environ.get('DJANGO_EMAIL_HOST_USER', '').strip()
+EMAIL_HOST_PASSWORD = os.environ.get('DJANGO_EMAIL_HOST_PASSWORD', '').strip()
+EMAIL_USE_TLS = env_bool('DJANGO_EMAIL_USE_TLS', True)
+EMAIL_USE_SSL = env_bool('DJANGO_EMAIL_USE_SSL', False)
+EMAIL_TIMEOUT = int(os.environ.get('DJANGO_EMAIL_TIMEOUT', '20'))
+
+# Transactional email provider selector:
+# - smtp: use Django SMTP backend settings above.
+# - brevo_api: send through Brevo API using API key headers.
+EMAIL_PROVIDER = os.environ.get('DJANGO_EMAIL_PROVIDER', 'smtp').strip().lower()
+
+BREVO_API_KEY = (
+    os.environ.get('DJANGO_BREVO_API_KEY')
+    or os.environ.get('BREVO_API_KEY', '')
+).strip()
+BREVO_API_URL = os.environ.get(
+    'DJANGO_BREVO_API_URL',
+    'https://api.brevo.com/v3/smtp/email',
+).strip()
+BREVO_API_TIMEOUT = int(
+    os.environ.get('DJANGO_BREVO_API_TIMEOUT', os.environ.get('DJANGO_EMAIL_TIMEOUT', '20'))
+)
+BREVO_SENDER_EMAIL = os.environ.get('DJANGO_BREVO_SENDER_EMAIL', '').strip()
+BREVO_SENDER_NAME = os.environ.get('DJANGO_BREVO_SENDER_NAME', '').strip()
 
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
@@ -197,7 +235,7 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # CORS Configuration
 CORS_ALLOWED_ORIGINS = os.environ.get(
     'CORS_ALLOWED_ORIGINS',
-    'http://localhost:3000,http://localhost:8000,http://127.0.0.1:3000',
+    'http://localhost:3000,http://localhost:5173,http://localhost:8000,http://127.0.0.1:3000',
 ).split(',')
 
 # Only allow credentials if necessary

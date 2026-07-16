@@ -3,7 +3,7 @@ from datetime import timedelta
 
 from django.conf import settings
 from django.contrib.auth.base_user import BaseUserManager
-from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin
+from django.contrib.auth.models import AbstractBaseUser, Group, PermissionsMixin
 from django.db import models
 from django.utils import timezone
 
@@ -79,7 +79,7 @@ class PasswordResetOTP(models.Model):
         return not self.used and timezone.now() <= self.expires_at
 
     @classmethod
-    def create_otp(cls, user, lifetime_minutes=15):
+    def create_otp(cls, user, lifetime_minutes=3):
         code = f'{random.randint(0, 999999):06d}'
         expires_at = timezone.now() + timedelta(minutes=lifetime_minutes)
         return cls.objects.create(user=user, code=code, expires_at=expires_at)
@@ -112,12 +112,14 @@ class SupportTicket(models.Model):
 class Category(models.Model):
     name = models.CharField(max_length=100)
     description = models.TextField(blank=True, null=True)
+    image = models.ImageField(upload_to='category_images/', blank=True, null=True)
 
     def __str__(self):
         return self.name
 
 class Location(models.Model):
     name = models.CharField(max_length=255)
+    image = models.ImageField(upload_to='location_images/', blank=True, null=True)
 
     def __str__(self):
         return self.name
@@ -183,6 +185,7 @@ class Itinerary(models.Model):
     itinerary_id = models.AutoField(primary_key=True)
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='itineraries')
     title = models.CharField(max_length=255)
+    image_url = models.URLField(max_length=500, blank=True, null=True)
     description = models.TextField(blank=True, null=True)
     start_date = models.DateField(blank=True, null=True)
     end_date = models.DateField(blank=True, null=True)
@@ -212,6 +215,7 @@ class Review(models.Model):
     place = models.ForeignKey(Place, on_delete=models.CASCADE, related_name='reviews')
     rating = models.IntegerField(choices=[(1, 1), (2, 2), (3, 3), (4, 4), (5, 5)])
     comment = models.TextField(blank=True, null=True)
+    is_approved = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -228,6 +232,68 @@ class ReviewPhoto(models.Model):
 
     def __str__(self):
         return f'Photo for review {self.review.review_id}'
+
+
+class RoleProfile(models.Model):
+    group = models.OneToOneField(
+        Group,
+        on_delete=models.CASCADE,
+        related_name='role_profile',
+    )
+    description = models.TextField(blank=True, default='')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f'Role profile for {self.group.name}'
+
+
+class SystemNotificationSetting(models.Model):
+    critical_errors = models.BooleanField(default=True)
+    new_users = models.BooleanField(default=False)
+    automated_backups = models.BooleanField(default=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    updated_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='notification_settings_updates',
+    )
+
+    @classmethod
+    def get_solo(cls):
+        instance = cls.objects.first()
+        if instance:
+            return instance
+        return cls.objects.create()
+
+    def __str__(self):
+        return 'System notification settings'
+
+
+class Contact(models.Model):
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='contacts',
+    )
+    name = models.CharField(max_length=150)
+    email = models.EmailField()
+    phone = models.CharField(max_length=50, blank=True)
+    subject = models.CharField(max_length=255)
+    message = models.TextField()
+    is_resolved = models.BooleanField(default=False)
+    admin_reply = models.TextField(blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ('-created_at',)
+
+    def __str__(self):
+        return f'Contact from {self.name} <{self.email}>'
 
 from django.db.models.signals import post_save, post_delete
 from django.dispatch import receiver

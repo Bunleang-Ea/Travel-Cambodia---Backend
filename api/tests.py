@@ -1,10 +1,26 @@
+import shutil
+import tempfile
+from unittest.mock import Mock, patch
 from django.contrib.auth import get_user_model
+from django.contrib.auth.models import Group
+from django.core.files.uploadedfile import SimpleUploadedFile
+from django.test import override_settings
 from django.urls import reverse
 from rest_framework import status
 from rest_framework.authtoken.models import Token
 from rest_framework.test import APITestCase
 
-from .models import Category, Location, PasswordResetOTP, Place, PlaceGallery, SupportTicket, Tag
+from .models import (
+    Category,
+    Itinerary,
+    Location,
+    PasswordResetOTP,
+    Place,
+    PlaceGallery,
+    ReviewPhoto,
+    SupportTicket,
+    Tag,
+)
 
 User = get_user_model()
 
@@ -34,9 +50,26 @@ class AccountFlowTests(APITestCase):
             },
             format='json',
         )
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertIn('token', response.data)
-        self.assertEqual(response.data['email'], 'newuser@example.com')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['detail'], 'OTP sent to email. Please verify to complete registration.')
+
+        # Retrieve the OTP record
+        otp_record = PasswordResetOTP.objects.filter(user__email='newuser@example.com', used=False).first()
+        self.assertIsNotNone(otp_record)
+
+        # Verify registration with OTP
+        verify_url = reverse('account-register-verify')
+        verify_response = self.client.post(
+            verify_url,
+            {
+                'email': 'newuser@example.com',
+                'otp': otp_record.code,
+            },
+            format='json',
+        )
+        self.assertEqual(verify_response.status_code, status.HTTP_200_OK)
+        self.assertIn('token', verify_response.data)
+        self.assertEqual(verify_response.data['email'], 'newuser@example.com')
 
         response = self.client.post(
             self.login_url,
@@ -152,6 +185,23 @@ class AccountFlowTests(APITestCase):
             HTTP_AUTHORIZATION=f'Token {self.user_token.key}',
         )
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_superadmin_group_user_can_access_admin_endpoints(self):
+        superadmin_user = User.objects.create_user(
+            email='super.role@example.com',
+            password='Password123!',
+            is_staff=False,
+        )
+        superadmin_group, _ = Group.objects.get_or_create(name='super_admin')
+        superadmin_group.user_set.add(superadmin_user)
+        superadmin_token = Token.objects.create(user=superadmin_user)
+
+        response = self.client.get(
+            reverse('admin-user-list'),
+            format='json',
+            HTTP_AUTHORIZATION=f'Token {superadmin_token.key}',
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
 
     def test_admin_can_create_and_delete_users_and_cannot_delete_self(self):
         response = self.client.post(
@@ -316,7 +366,7 @@ class PublicPlaceEndpointsTests(APITestCase):
 
         invalid_response = self.client.get(reverse('place-list'), {'category_id': 'abc'})
         self.assertEqual(invalid_response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn('category_id', invalid_response.data)
+        self.assertIn('category_id', invalid_response.data.get('errors', {}))
 
     def test_place_detail_increments_view_count(self):
         detail_url = reverse('place-detail', kwargs={'pk': self.published_place.place_id})
@@ -342,3 +392,250 @@ class PublicPlaceEndpointsTests(APITestCase):
         tag_names = {item['name'] for item in tag_response.data}
         self.assertIn('culture', tag_names)
         self.assertIn('family', tag_names)
+
+
+class ItineraryEndpointsTests(APITestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(
+            email='itinerary.user@example.com',
+            password='Password123!',
+        )
+        self.user_token = Token.objects.create(user=self.user)
+        self.itinerary_list_url = reverse('itinerary-list')
+
+    def _auth_headers(self):
+        return {'HTTP_AUTHORIZATION': f'Token {self.user_token.key}'}
+
+    def test_create_itinerary_accepts_frontend_payload_without_title(self):
+        response = self.client.post(
+            self.itinerary_list_url,
+            {
+                'destination': 'Siem Reap Adventure',
+                'image': 'https://example.com/places/angkor.jpg',
+                'tripType': 'Solo Travel',
+                'startDate': '',
+                'endDate': '',
+                'notes': 'Visit Angkor temples.',
+            },
+            format='json',
+            **self._auth_headers(),
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data['title'], 'Siem Reap Adventure')
+        self.assertEqual(response.data['image'], 'https://example.com/places/angkor.jpg')
+        self.assertEqual(response.data['description'], 'Visit Angkor temples.')
+        self.assertIsNone(response.data['start_date'])
+        self.assertIsNone(response.data['end_date'])
+
+        itinerary = Itinerary.objects.get(itinerary_id=response.data['itinerary_id'])
+        self.assertEqual(itinerary.user, self.user)
+        self.assertEqual(itinerary.title, 'Siem Reap Adventure')
+        self.assertEqual(itinerary.image_url, 'https://example.com/places/angkor.jpg')
+
+    def test_put_update_does_not_require_title(self):
+        itinerary = Itinerary.objects.create(
+            user=self.user,
+            title='Original Title',
+            description='Original notes',
+        )
+
+        response = self.client.put(
+            reverse('itinerary-detail', kwargs={'pk': itinerary.itinerary_id}),
+            {'notes': 'Updated notes only'},
+            format='json',
+            **self._auth_headers(),
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['title'], 'Original Title')
+        self.assertEqual(response.data['description'], 'Updated notes only')
+
+
+class ReviewEndpointsTests(APITestCase):
+    def setUp(self):
+        self.media_root = tempfile.mkdtemp()
+        self.media_override = override_settings(MEDIA_ROOT=self.media_root)
+        self.media_override.enable()
+        self.addCleanup(self.media_override.disable)
+        self.addCleanup(lambda: shutil.rmtree(self.media_root, ignore_errors=True))
+
+        self.user = User.objects.create_user(email='reviewer@example.com', password='Password123!')
+        self.user_token = Token.objects.create(user=self.user)
+        self.review_list_url = reverse('review-list')
+
+        category = Category.objects.create(name='Nature')
+        location = Location.objects.create(name='Kampot')
+        self.place = Place.objects.create(
+            name='Bokor Hill Station',
+            description='Historic mountain destination',
+            publishing_status='Published',
+            category=category,
+            location=location,
+        )
+
+    def _auth_headers(self):
+        return {'HTTP_AUTHORIZATION': f'Token {self.user_token.key}'}
+
+    def test_user_can_create_review_with_photo_urls(self):
+        response = self.client.post(
+            self.review_list_url,
+            {
+                'place': self.place.place_id,
+                'rating': 5,
+                'comment': 'Amazing mountain views.',
+                'photo_urls': [
+                    'https://example.com/reviews/bokor-1.jpg',
+                    'https://example.com/reviews/bokor-2.jpg',
+                ],
+            },
+            format='json',
+            **self._auth_headers(),
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(len(response.data['photos']), 2)
+
+        stored_urls = set(
+            ReviewPhoto.objects.filter(review_id=response.data['review_id']).values_list(
+                'image_url',
+                flat=True,
+            )
+        )
+        self.assertEqual(
+            stored_urls,
+            {
+                'https://example.com/reviews/bokor-1.jpg',
+                'https://example.com/reviews/bokor-2.jpg',
+            },
+        )
+
+    def test_user_can_create_review_with_uploaded_photo(self):
+        jpeg_content = b'\xff\xd8\xff' + (b'\x00' * 2048)
+        uploaded_photo = SimpleUploadedFile(
+            'review-photo.jpg',
+            jpeg_content,
+            content_type='image/jpeg',
+        )
+
+        response = self.client.post(
+            self.review_list_url,
+            {
+                'place': self.place.place_id,
+                'rating': 4,
+                'comment': 'Great experience.',
+                'photo_files': [uploaded_photo],
+            },
+            format='multipart',
+            **self._auth_headers(),
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(len(response.data['photos']), 1)
+        self.assertIn('/media/reviews/', response.data['photos'][0]['image_url'])
+
+
+class PasswordResetVerifyEndpointTests(APITestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(
+            email='otp.verify@example.com',
+            password='Password123!',
+        )
+        self.verify_url = reverse('auth-verify-reset-otp')
+        self.otp_record = PasswordResetOTP.create_otp(self.user)
+
+    def test_verify_reset_otp_accepts_valid_code(self):
+        response = self.client.post(
+            self.verify_url,
+            {'email': self.user.email, 'otp': self.otp_record.code},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['detail'], 'OTP verified.')
+
+    def test_verify_reset_otp_rejects_invalid_code(self):
+        response = self.client.post(
+            self.verify_url,
+            {'email': self.user.email, 'otp': '000000'},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertTrue('Invalid or expired OTP.' in str(response.data))
+
+
+class GoogleAuthEndpointTests(APITestCase):
+    def setUp(self):
+        self.url = reverse('auth-google')
+
+    @patch.dict('os.environ', {'GOOGLE_OAUTH_CLIENT_ID': 'test-google-client-id'})
+    @patch('api.views.requests.get')
+    def test_google_auth_creates_user_when_email_is_new(self, mock_get):
+        mock_get.return_value = Mock(
+            status_code=status.HTTP_200_OK,
+            json=lambda: {
+                'aud': 'test-google-client-id',
+                'email': 'google.user@example.com',
+                'email_verified': 'true',
+                'name': 'Google User',
+                'picture': 'https://example.com/avatar.jpg',
+            },
+        )
+
+        response = self.client.post(
+            self.url,
+            {'id_token': 'valid-google-id-token'},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn('token', response.data)
+        self.assertEqual(response.data['email'], 'google.user@example.com')
+        user = User.objects.get(email='google.user@example.com')
+        self.assertTrue(user.is_active)
+        self.assertEqual(user.full_name, 'Google User')
+
+    @patch.dict('os.environ', {'GOOGLE_OAUTH_CLIENT_ID': 'test-google-client-id'})
+    @patch('api.views.requests.get')
+    def test_google_auth_activates_existing_inactive_user(self, mock_get):
+        user = User.objects.create_user(
+            email='inactive.google@example.com',
+            password='Password123!',
+            is_active=False,
+        )
+
+        mock_get.return_value = Mock(
+            status_code=status.HTTP_200_OK,
+            json=lambda: {
+                'aud': 'test-google-client-id',
+                'email': user.email,
+                'email_verified': 'true',
+                'name': 'Reactivated User',
+                'picture': 'https://example.com/reactivated.jpg',
+            },
+        )
+
+        response = self.client.post(
+            self.url,
+            {'id_token': 'valid-google-id-token'},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        user.refresh_from_db()
+        self.assertTrue(user.is_active)
+
+    @patch.dict('os.environ', {'GOOGLE_OAUTH_CLIENT_ID': 'test-google-client-id'})
+    @patch('api.views.requests.get')
+    def test_google_auth_rejects_invalid_token(self, mock_get):
+        mock_get.return_value = Mock(status_code=status.HTTP_400_BAD_REQUEST)
+
+        response = self.client.post(
+            self.url,
+            {'id_token': 'invalid-google-id-token'},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertTrue('Invalid Google ID token.' in str(response.data))
