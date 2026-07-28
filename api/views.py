@@ -162,16 +162,28 @@ def _admin_like_role_names():
 
 def _apply_group_role_flags(user):
     role_names = {normalize_role_name(group.name) for group in user.groups.all()}
-    if user.is_superuser:
-        if not user.is_staff:
-            user.is_staff = True
-            user.save(update_fields=["is_staff"])
-        return
-
-    should_be_staff = bool(role_names & _admin_like_role_names())
+    
+    super_admin_roles = {
+        "superadmin",
+        "super-admin",
+        "super_admin",
+        "super admin",
+    }
+    
+    should_be_superuser = bool(role_names & super_admin_roles)
+    should_be_staff = should_be_superuser or bool(role_names & _admin_like_role_names())
+    
+    updated_fields = []
+    if user.is_superuser != should_be_superuser:
+        user.is_superuser = should_be_superuser
+        updated_fields.append("is_superuser")
+        
     if user.is_staff != should_be_staff:
         user.is_staff = should_be_staff
-        user.save(update_fields=["is_staff"])
+        updated_fields.append("is_staff")
+        
+    if updated_fields:
+        user.save(update_fields=updated_fields)
 
 
 class RegisterView(APIView):
@@ -576,17 +588,7 @@ class AdminAssignRoleView(APIView):
         group, _ = Group.objects.get_or_create(name=role_name)
         group.user_set.add(user)
 
-        normalized_role = normalize_role_name(role_name)
-        if normalized_role in {
-            "admin",
-            "administrator",
-            "superadmin",
-            "super-admin",
-            "super_admin",
-            "super admin",
-        } and not user.is_staff:
-            user.is_staff = True
-            user.save(update_fields=["is_staff"])
+        _apply_group_role_flags(user)
 
         return Response({'detail': f'Role \"{role_name}\" assigned to {user.email}.'})
 
@@ -605,9 +607,7 @@ class AdminRemoveRoleView(APIView):
             return Response({'detail': 'Role not found.'}, status=status.HTTP_404_NOT_FOUND)
         group.user_set.remove(user)
 
-        if not user.is_superuser and not is_admin_like(user):
-            user.is_staff = False
-            user.save(update_fields=["is_staff"])
+        _apply_group_role_flags(user)
 
         return Response({'detail': f'Role \"{role_name}\" removed from {user.email}.'})
 
