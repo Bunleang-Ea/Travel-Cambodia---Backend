@@ -1111,8 +1111,6 @@ class ReviewViewSet(viewsets.ModelViewSet):
         place_id = self.request.query_params.get('place_id', None)
         if place_id:
             queryset = queryset.filter(place_id=place_id)
-        if not is_admin_like(self.request.user):
-            queryset = queryset.filter(is_approved=True)
         return queryset
 
     def perform_create(self, serializer):
